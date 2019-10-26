@@ -164,7 +164,7 @@ amazonia.frame = class frame {
 			} else {
 
 			}
-			ajax.send (componente.ruta, "get", {})
+			ajax.send (componente.ruta, {}, "get")
 			.then ( (xhr) => {
 				var elementoAuxiliar = document.createElement("div");
 				elementoAuxiliar.innerHTML = xhr.responseText;
