@@ -10,6 +10,13 @@ amazonia.atributo = class atributo {
 	constructor () { }
 }
 
+amazonia.exceptions = {
+	inconsistentParentness: 'There are an inconsistence in parentness',
+	inconsistentParentness2: 'There are an inconsistence in parentness2',
+	noRouteSelected: 'No rute selected in component',
+	notFoundRoute: 'The route have been not found'
+}
+
 amazonia.states = {
 	standBy: 1,
 	decorating: 2,
@@ -29,7 +36,7 @@ amazonia.getQueryVariable = function (variable) {
  }
 
 amazonia.frame = class frame {
-	constructor() {
+	constructor() {	
 		this.etiquetas = [];
 		this.atributos = [];
 		this.state = amazonia.states.standBy;
@@ -39,8 +46,7 @@ amazonia.frame = class frame {
 
 		// Los componentes tendrán un ciclo de vida
 		this.componentes = [];
-		this.templates = [];
-
+		this.templates = [];	
 	}
 
 	captureWatch (attribute) {
@@ -52,7 +58,7 @@ amazonia.frame = class frame {
 			return capturedText;
 		}
 		attribute.asignValue = function (asign) {
-			functMod.call (attribute.$scope.component, asign);
+			functMod.call (attribute.$scope, asign);
 		}
 		
 		let funct = function () {
@@ -62,383 +68,319 @@ amazonia.frame = class frame {
 		};
 
 		attribute.getValue = function () {
-			return funct.call(attribute.$scope.component);
+			return funct.call(attribute.$scope);
 		}
 	}
 
-	sendTemplatePromise (etiqueta) {
-		this.templates[etiqueta.nombre] = {
-			_template: "",
-			status: ""
+	searchInTags (nodeElement) {
+		if (!(nodeElement.template instanceof Element)) {
+			return;
+		}
+		for (let i in this.etiquetas) {
+			if (this.etiquetas[i].nombre.toUpperCase() == nodeElement.template.tagName) {
+				nodeElement.tag = {
+					tag: this.etiquetas[i],
+					state: 0,
+					listeners: []
+				};
+				nodeElement.toChange = true;
+			}
+		}
+	}
+	searchInAttributes (nodeElement) {
+		if (!(nodeElement.template instanceof Element)) {
+			return;
+		}
+		for (let i = 0; i < nodeElement.template.attributes.length; i++) {
+			let nodeAttribute = nodeElement.template.attributes.item(i).nodeName;
+			for (let j in this.atributos) {
+				if (this.atributos[j].nombre == nodeAttribute) {
+					nodeElement.attributes.push (this.atributos[j]);
+					nodeElement.toChange = true;
+				}
+			}
 		}
 	}
 
-	_findFrom (arr, attrib, ele) {
-		return arr.find ((v) => { 
-			 return v.ele.getAttribute (attrib) === ele.getAttribute (attrib) });
-	}
-
-
-	createGenId (idName) {
-		if (!this[idName]) {
-			this[idName] = 1;
-		} else {
-			this[idName]++;
+	searchInNotation (nodeElement) {
+		if (nodeElement.template instanceof Text) {
+			if (this.maskedNotation (nodeElement.template.data)) {
+				nodeElement.toChange = true;
+				nodeElement.masked = true;
+			}
+		} else if (nodeElement.template instanceof Element) {
+			for (let i = 0; i < nodeElement.template.attributes.length; i++) {
+				let nodeAttribute = nodeElement.template.attributes.item(i);
+				if (this.maskedNotation (nodeAttribute.nodeValue)) {
+					nodeElement.toChange = true;
+					if (!nodeElement.masked) {
+						nodeElement.masked = [];
+					}
+					nodeElement.masked.push (nodeAttribute.nodeName);
+				}
+			}
 		}
-		//console.log (this[idName]);
-		return this[idName];
 	}
 
-
-	_getFrom (arr, attrib, elemento, createId) {
-		//console.log (elemento, elemento.getAttribute (attrib), attrib);
-		let encontrado = this._findFrom (arr, attrib, elemento);
-		//console.log (encontrado);
-		if (!encontrado) {
-			elemento.setAttribute (attrib, this.createGenId(createId));
-			encontrado = { ele: elemento };
-			arr.push (encontrado);
-		}
-
-		return encontrado;
-	}
-
-	_getAttrib (elemento) {
-		return this._getFrom (this.atributosDOM, 'data-am-id', elemento, '_currentAttribId');
-	}
-
-	_getDOM (elemento) {
-		return this._getFrom (this.elementosDOM, 'data-am-2-id', elemento, '_currentTagId');
-	}
-
-	_getChanged (elemento) {
-		return this._getFrom (this.alteredDOM, 'data-am-ch-id', elemento, '_currentChangedId');
-	}
-
-	
-
-	set controlador (funct) {
-		this._controlador = funct;
-	}
-
-	changedState (state) {
+	maskedNotation(string){
+		var regex = /{{([^}]*)}}/g;
 		
-	}
+		var match = string.match(regex);
+		if (match == null || match.length == 0) {
+			return null;
+		}
 
-	set state (value) {
-		this._state = value;
-		this.changedState (this._state);
-	}
-
-	get state () {
-		return this._state;
+		return match;
 	}
 
 	enmascararNotacion(string){
 		var regex = /{{([^}]*)}}/g;
-		var regex2 = /@([^}]*)@/g;
-		var mascara;
-		var resultado = "";
 		
-		while ((mascara = regex2.exec(string)) !== null) {
-		   	resultado = eval (mascara[1]);
-		   	return resultado;
-		}
 		var newString = string.replace(regex, (exp, content, offset, text, s) => {
 			return eval (content);
 		});
 		return newString;
 	}
 	
-
-
-	asignarVista (objetoDOM, componente) {
-		let v = this;
-		if (!componente._template) {
-			if (v.templates[componente.name]) {
-				if (v.templates[componente.name].status == "finished") {
-					componente._template = v.templates[component.name];
-				} else {
-
-				}
-			} else {
-
-			}
-			ajax.send (componente.ruta, {}, "get")
-			.then ( (xhr) => {
-				var elementoAuxiliar = document.createElement("div");
-				elementoAuxiliar.innerHTML = xhr.responseText;
-
-				var convertidos = elementoAuxiliar.children;
-				
-				componente._template = convertidos;
-				//reload (componente, objetoDOM);
-				//console.log (v);
-				v.aplicar();
-			})
-			.catch (function (data) {
-				
-			})
-		} else {
-			reload (componente, objetoDOM);
-		}
-
-		function reload (component, objetoDOM) {
-			if (!component._init) {
-				
-				while (objetoDOM.children.length > 0) {
-					objetoDOM.removeChild(objetoDOM.children[0]);
-				}
-				let elementos = [];
-				for (var i = 0; i < component._template.length; i++) {
-					elementos.push (v.barrido (component._template[i], component));
-				}
-				
-				for (var i = 0; i < elementos.length; i++)
-					objetoDOM.appendChild(elementos[i]);
-					
-				component._init = true;
-				if (component.$init) {
-					component.$init();
-				}
-			} else {
-				
-			}
-		}
-		
-		if (componente._init) {
-			componente._init = true;
-		}
-	}
-
-	getEtiqueta (element) {
-		let etiqueta = null;
-		for (let i in this.etiquetas) {
-			if (element.tagName == this.etiquetas[i].nombre.toUpperCase()) {
-				let amObjeto = this._getDOM (element);
-				if (amObjeto[element.tagName]) {
-					etiqueta = amObjeto[element.tagName];
-				} else {
-					etiqueta = new this.etiquetas[i].create();
-					etiqueta.name = element.tagName;
-					etiqueta.app = this;
-					amObjeto[element.tagName] = etiqueta;
-					
-					if (etiqueta.controller) {
-						etiqueta.controller();
-					}
-				}
-				
-			}
-		}
-		return etiqueta;
-	}
-
-	getAttributes (element) {
-		var v = this;
-		let attrib = null;
-		let turn = [];
-
-		for (var i in this.atributos) {
-			for (var j = 0; j < element.attributes.length; j++) {
-				
-				if (element.attributes.item(j).nodeName == this.atributos[i].nombre) {
-					
-					let amObjeto = this._getAttrib (element, this.atributos[i].nombre);
-					
-					if (amObjeto[element.attributes.item(j).nodeName]) {
-						attrib = amObjeto[element.attributes.item(j).nodeName];
-					} else {
-						attrib = this.appendAttribute (element, this.atributos[i], amObjeto, j);
-					}
-					turn.push (attrib);
-				}
-			}
-		}
-		return turn;
-	}
-
-	appendAttribute (element, attribute, amObjeto, j) {
-		if (typeof (j) == "undefined" || j == null) {
-			
-			for (let i = 0; i < element.attributes.length; i++) {
-				if (element.attributes.item(i).nodeName == attribute.nombre) {
-					j = i;
-					break;
-				}
-			}
-			if (typeof (j) == "undefined" || j == null)
-				return null;
-				
-		}
-		let objeto = amObjeto ? amObjeto : this._getAttrib(element, attribute.nombre);
-		
-		let attrib = new attribute.create();
-		attrib.$initialiced = false;
-
-		attrib.name = element.attributes.item(j).nodeName;
-		attrib.element = element;
-		attrib.app = this;
-		attrib.value = element.attributes.item(j).nodeValue;
-
-		objeto[element.attributes.item(j).nodeName] = attrib;
-		
-		if (attrib.controller) {
-			attrib.controller();
-		}
-		
-		return attrib;
-	}
-
-	resetToStart () {
-		for (let i in this.alteredDOM) {
-			if (this.alteredDOM[i].attrs) {
-				for (let j in this.alteredDOM[i].attrs) {
-					let attr = this.alteredDOM[i].attrs[j];
-					
-					this.alteredDOM[i].ele.setAttribute (attr.nodeName, attr.nodeValue);
-					
-				}
-			}
-			if (this.alteredDOM[i].childs) {
-				for (let j in this.alteredDOM[i].childs) {
-					let child = this.alteredDOM[i].childs[j];
-					child.child.data = child.value;
-				}
-			}
-		}
-	}
-
-	barrido (objetoDOM, componente) {
-		let etiqueta = componente;
-
-		
-		try {
-			let aux = this.getEtiqueta (objetoDOM);
-			if (aux) {
-				etiqueta = aux;
-				this.asignarVista (objetoDOM, etiqueta);
-
-				if (etiqueta.$render)
-					etiqueta.$render();
-			}
-
-			var v = this;
-
-			let attributes = this.getAttributes (objetoDOM);
-			
-			if (attributes.length) {
-				for (let i in attributes) {
-					let attribute = attributes[i];
-					if (!attribute.$scope) {
-						attribute.$scope = {};
-					}
-						
-					attribute.$scope.component = componente;
-					attribute.$scope.element = objetoDOM;
-	
-					if (!attribute.$initialiced) {
-						
-						//console.log (attribute.name, attribute.$init);
-						if (attribute.$init) {
-							attribute.$init();
-						}
-						attribute.$initialiced = true;
-						
-					}
-					
-					if (attribute.$render) {
-						attribute.$render();
-					}
-				}
-			}
-			
-			for (var i = 0; i < objetoDOM.children.length; i++) {
-				
-				this.barrido(objetoDOM.children[i], etiqueta);
-			}
-			
-		} catch (ex) {
-			console.error (ex);
-		}
-		
-		if (typeof (etiqueta) != "undefined") {
-			
-			for (var j = 0; j < objetoDOM.attributes.length; j++) {
-				var strings = [];
-				
-				strings.push (objetoDOM.attributes.item(j).nodeValue);
-				var enmascarados = [];
-				var nodeName = objetoDOM.attributes.item(j).nodeName;
-				strings.forEach(x => enmascarados.push(this.enmascararNotacion.call(etiqueta, x)));
-				if (strings[0] != enmascarados[0]) {
-					
-					let elemento = this._getChanged(objetoDOM);
-					if (!elemento.attrs) {
-						elemento.attrs = [];
-					}
-					let found = elemento.attrs.find ((x) => (x.nodeName == nodeName));
-					if (found) {
-						found.nodeName = nodeName;
-						found.nodeValue = strings[0];
-					} else {
-						elemento.attrs.push ({ nodeName: nodeName, nodeValue: strings[0] });
-					}
-					
-					objetoDOM.setAttribute(nodeName, enmascarados[0]);
-				}
-				
-			}
-			
-			let childs = objetoDOM.childNodes;
-			let obj = objetoDOM;
-
-			let attributes = this.getAttributes (objetoDOM);
-			for (let i = 0; i < childs.length; i++) {
-				var strings = [];
-				if (childs[i] instanceof Text) {
-					
-					strings.push (childs[i].data);
-					var enmascarados = [];
-					strings.forEach(x => enmascarados.push(this.enmascararNotacion.call(etiqueta, x)));
-					
-					if (strings[0] != enmascarados[0]) {
-						let elemento = this._getChanged(objetoDOM);
-						if (!elemento.childs) {
-							elemento.childs = [];
-						}
-						let found = elemento.childs.find ((x) => (x.child == childs[i]));
-						if (found) {
-							found.value = strings[0];
-						} else {
-							elemento.childs.push ({ child: childs[i], value: strings[0] });
-						}
-						
-						childs[i].data = enmascarados[0];
-					}
-					
-				}
-			}
-			
-		}
-		
-		
-		return objetoDOM;
+	searchInExisting (nodeElement) {
+		this.searchInTags (nodeElement);
+		this.searchInAttributes (nodeElement);
+		this.searchInNotation (nodeElement);
 	}
 
 	aplicar () {
-		this.state = amazonia.states.decorating;
-		this.resetToStart();
-		this.barrido (document.getElementsByTagName("body")[0]);
-		this.state = amazonia.states.decorateEnd;
-		this.state = amazonia.states.standBy;
-		
-		
+		this.bootstrap (this.tree);
 	}
+
+	initialiceNode (nodeElement, scope) {
+		
+		nodeElement.element = nodeElement.template.cloneNode();
+		if (!nodeElement.toChange) {
+			return nodeElement;
+		}
+		if (nodeElement.tag) {
+			let tag = nodeElement.tag;
+			if (!nodeElement.currentTag) {
+				nodeElement.currentTag = new tag.tag.create();
+				nodeElement.currentTag.app = this;
+				nodeElement.currentTag.nodeElement = nodeElement;
+				if (nodeElement.currentTag.controller) {
+					nodeElement.currentTag.controller();
+				}
+			}
+
+			if (tag.tag.ruta) {
+				if (tag.state == 2) { // with template
+					let clone = tag._template.cloneNode();
+					let child;
+					while (child = clone.firstChild) {
+						clone.removeChild(child);
+						nodeElement.children.push (this.map (child, nodeElement));
+					}
+					if (nodeElement.currentTag.$init) {
+						nodeElement.currentTag.$init();
+					}
+				} else if (tag.state == 0) { // not looking
+					tag.state = 1;
+					tag.listeners.push (nodeElement);
+					ajax.send (tag.tag.ruta, 'get', {})
+					.then ((xhr) => {
+						tag.state = 3;
+						let div = document.createElement ('DIV');
+						div.innerHTML = xhr.responseText;
+						
+						tag._template = div;
+						
+						for (let i in tag.listeners) {
+							let clone = tag._template.cloneNode(true);
+							let child;
+							while (child = clone.firstChild) {
+								clone.removeChild(child);
+								tag.listeners[i].children.push (this.map (child, tag.listeners[i]));
+							}
+							if (tag.listeners[i].currentTag.$init) {
+								tag.listeners[i].currentTag.$init();
+							}
+						}
+						this.aplicar();
+						tag.state = 2;
+					})
+					.catch (function (data) {
+						console.log (data);
+						tag.state = 3;
+						throw amazonia.exceptions.notFoundRoute;
+					});
+				} else if (tag.state == 1) {
+					if (tag.listeners.indexOf (nodeElement) < 0) {
+						tag.listeners.push (nodeElement);
+					}
+				}
+			} else {
+				throw amazonia.exceptions.noRouteSelected;
+			}
+		}
+		if (nodeElement.attributes.length) {
+			nodeElement.currentAttributes = [];
+			for (let i in nodeElement.attributes) {
+				let attrib = new nodeElement.attributes[i].create();
+				
+				attrib.element = nodeElement.element;
+				attrib.nodeElement = nodeElement;
+				attrib.$scope = scope;
+				attrib.name = nodeElement.attributes[i].nombre;
+				attrib.app = this;
+				attrib.value = nodeElement.element.getAttribute(nodeElement.attributes[i].nombre);
+
+				nodeElement.currentAttributes[i] = attrib;
+				if (nodeElement.currentAttributes[i].controller) {
+					nodeElement.currentAttributes[i].controller();
+				}
+				if (nodeElement.currentAttributes[i].$init) {
+					nodeElement.currentAttributes[i].$init();
+				}
+			}
+		}
+	}
+
+    bootstrap (nodeElement, scope) {
+		
+		if (!nodeElement.parent) {
+			if (!nodeElement.hasParent) {
+				throw amazonia.exceptions.inconsistentParentness;
+			}
+			if (!nodeElement.element) {
+				nodeElement.element = nodeElement.template;
+			}
+			
+		} else {
+			if (nodeElement.hasParent) {
+				throw amazonia.exceptions.inconsistentParentness2;
+			}
+			if (!nodeElement.element && !nodeElement.evaluated) {
+				
+				this.initialiceNode (nodeElement, scope);
+				
+				if (nodeElement.element instanceof Array) {
+					for (let i in nodeElement.element) {
+						nodeElement.parent.element.appendChild (nodeElement.element[i]);
+					}
+				} else {
+					nodeElement.parent.element.appendChild (nodeElement.element);
+				}
+			}
+			scope = nodeElement.currentTag || scope;
+			this.render (nodeElement, scope);
+		}
+		for (let i = 0; i < nodeElement.children.length; i++) {
+			this.bootstrap (nodeElement.children[i], scope);
+		}
+	}
+
+	render (nodeElement, scope) {
+		if (nodeElement.masked) {
+			if (nodeElement.masked instanceof Array) {
+				for (let i in nodeElement.masked) {
+					nodeElement.element.setAttribute (
+						this.enmascararNotacion.call (scope, nodeElement.element.getAttribute (nodeElement.masked[i]))
+					);
+				}
+			} else {
+				nodeElement.element.data = this.enmascararNotacion.call (scope, nodeElement.element.data);
+			}
+		}
+		if (nodeElement.tag) {
+			if (nodeElement.currentTag.$render) {
+				nodeElement.currentTag.$render();
+			}
+		}
+		if (nodeElement.attributes.length) {
+			for (let i in nodeElement.currentAttributes) {
+				if (nodeElement.currentAttributes[i].$render) {
+					nodeElement.currentAttributes[i].$render();
+				}
+				
+			}
+		}
+	}
+
+	appendNodeElement (nodeElement, child) {
+		nodeElement.children.push (child);
+		if (child.element) {
+			nodeElement.element.appendChild (child.element);
+		}
+	}
+
+	removeNodeElement (nodeElement, child) {
+		let i = nodeElement.children.indexOf (child);
+		if ( i !== -1 ) {
+			nodeElement.children.splice( i, 1 );
+		}
+		nodeElement.parent.removeChild (child.element);
+	}
+
+	convertNodeToNone (nodeElement) {
+		nodeElement.evaluated = true;
+		nodeElement.parent.element.removeChild (nodeElement.element);
+		nodeElement.children = [];
+		nodeElement.element = null;
+	}
+	
+
+	createNodeElement (node, parent) {
+		let newNodeElement = {
+			template: node,
+			element: null,
+			type: typeof (node),
+			parent: parent,
+			children: [],
+			hasParent: !!node.parentNode,
+			element: null,
+			attributes: [],
+			toChange: false,
+			masked: null
+		}
+		this.searchInExisting (newNodeElement);
+		return newNodeElement;
+	}
+	cloneNodeElement (nodeElement, deep) {
+		if (!deep) {
+			return this.createNodeElement (nodeElement.template, nodeElement.parent);
+		} else {
+			let clone = this.createNodeElement (nodeElement.template, nodeElement.parent);
+			for (let i in nodeElement.children) {
+				clone.children.push (this.createNodeElement (nodeElement.children[i].template, clone));
+			}
+			return clone;
+		}
+	}
+	
+	map (node, parent) {
+		
+		
+		let nodeElement = this.createNodeElement (node, parent);
+		
+		let children = [];
+		
+		while (node.hasChildNodes()) {
+			children.push (node.firstChild);
+            node.removeChild(node.firstChild);
+		}
+		
+		for (let i = 0; i < children.length; i++) {
+			nodeElement.children.push(this.map (children[i], nodeElement));
+		}
+		return nodeElement;
+	}
+    
+    capture (node) {
+		this.tree = this.map (node, null);
+		
+    }
 
 	crear () {
 		if (this._controlador)
-			this._controlador.apply (this);
+            this._controlador.apply (this);
+        this.capture (document.getElementsByTagName ('body')[0]);
 	}
 
 	encender () {
